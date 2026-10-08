@@ -7,12 +7,15 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QFrame>
+#include <QFile>
+#include <QFontDatabase>
 #include <QGridLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSizePolicy>
 #include <QSignalBlocker>
@@ -21,6 +24,7 @@
 #include <QStatusBar>
 #include <QStyle>
 #include <QTableWidget>
+#include <QTextDocument>
 #include <QVBoxLayout>
 #include <cerrno>
 #include <cmath>
@@ -138,6 +142,9 @@ QString formatReal(long double number) {
 } // namespace
 
 CalculatorWindow::CalculatorWindow(QWidget* parent) : QMainWindow(parent) {
+    // Explicit registration also keeps resources linked from the static GUI
+    // library, so both the app and GUI tests can load bundled assets.
+    Q_INIT_RESOURCE(resources);
     setWindowTitle(QStringLiteral("Project1 · 多项式与表达式计算器"));
     resize(1280, 840);
     setMinimumSize(1120, 780);
@@ -182,19 +189,19 @@ CalculatorWindow::CalculatorWindow(QWidget* parent) : QMainWindow(parent) {
     navigation->addSpacing(6);
     expressionNavigation_ = button(QStringLiteral("01   表达式计算"), "navigation", "expressionNavigation");
     polynomialNavigation_ = button(QStringLiteral("02   多项式计算"), "navigation", "polynomialNavigation");
+    comingSoonNavigation_ = button(QStringLiteral("03   敬请期待"), "navigation", "comingSoonNavigation");
     auto* group = new QButtonGroup(this);
     group->setExclusive(true);
     expressionNavigation_->setCheckable(true);
     polynomialNavigation_->setCheckable(true);
+    comingSoonNavigation_->setCheckable(true);
     group->addButton(expressionNavigation_);
     group->addButton(polynomialNavigation_);
+    group->addButton(comingSoonNavigation_);
     navigation->addWidget(expressionNavigation_);
     navigation->addWidget(polynomialNavigation_);
+    navigation->addWidget(comingSoonNavigation_);
     navigation->addStretch();
-    navigation->addWidget(label(QStringLiteral("每一步，都看得见"), "fieldLabel"));
-    auto* sidebarHint = label(QStringLiteral("从输入到结果\n一起观察计算的过程。"), "muted");
-    sidebarHint->setWordWrap(true);
-    navigation->addWidget(sidebarHint);
     root->addWidget(sidebar);
 
     auto* workspace = new QWidget;
@@ -218,6 +225,7 @@ CalculatorWindow::CalculatorWindow(QWidget* parent) : QMainWindow(parent) {
     pages_->setObjectName("pages");
     pages_->addWidget(createExpressionPage());
     pages_->addWidget(createPolynomialPage());
+    pages_->addWidget(createComingSoonPage());
     content->addWidget(pages_, 1);
     root->addWidget(workspace, 1);
     statusBar()->setSizeGripEnabled(false);
@@ -226,6 +234,7 @@ CalculatorWindow::CalculatorWindow(QWidget* parent) : QMainWindow(parent) {
     statusBar()->addPermanentWidget(footer);
     connect(expressionNavigation_, &QPushButton::clicked, this, [this] { changePage(0); });
     connect(polynomialNavigation_, &QPushButton::clicked, this, [this] { changePage(1); });
+    connect(comingSoonNavigation_, &QPushButton::clicked, this, [this] { changePage(2); });
     changePage(0);
     calculatePolynomial();
     calculateExpression();
@@ -235,11 +244,66 @@ void CalculatorWindow::changePage(int index) {
     pages_->setCurrentIndex(index);
     expressionNavigation_->setChecked(index == 0);
     polynomialNavigation_->setChecked(index == 1);
+    comingSoonNavigation_->setChecked(index == 2);
+    if (index == 2) {
+        pageTitle_->setText(QStringLiteral("敬请期待"));
+        pageSubtitle_->setText(QStringLiteral("更多功能，敬请期待～"));
+        pageBadge_->setText(QStringLiteral("COMING SOON"));
+        statusBar()->showMessage(QStringLiteral("敬请期待"));
+        return;
+    }
+    statusBar()->showMessage(QStringLiteral("就绪   ·   支持键盘输入，按 Enter 计算"));
     pageTitle_->setText(index == 0 ? QStringLiteral("表达式计算") : QStringLiteral("多项式计算"));
     pageSubtitle_->setText(index == 0
         ? QStringLiteral("输入一个表达式，查看结果与完整的演算过程～")
         : QStringLiteral("让稀疏多项式的加减、相乘与求导一目了然～"));
     pageBadge_->setText(index == 0 ? QStringLiteral("双栈 · 逐步演算") : QStringLiteral("一元稀疏多项式"));
+}
+
+QWidget* CalculatorWindow::createComingSoonPage() {
+    auto* page = new QWidget;
+    page->setObjectName("comingSoonPage");
+    auto* layout = new QHBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->addStretch(1);
+
+    auto* terminal = new QFrame;
+    identify(terminal, "asciiCard");
+    terminal->setMinimumWidth(620);
+    terminal->setMaximumWidth(720);
+    auto* terminalLayout = new QVBoxLayout(terminal);
+    terminalLayout->setContentsMargins(24, 18, 24, 20);
+    terminalLayout->setSpacing(14);
+    auto* heading = new QHBoxLayout;
+    heading->addWidget(label(QStringLiteral(">_  text"), "asciiHeading"));
+    heading->addStretch();
+    heading->addWidget(label(QStringLiteral("ASCII"), "asciiCaption"));
+    terminalLayout->addLayout(heading);
+
+    auto* art = new QPlainTextEdit;
+    identify(art, "asciiArt", "comingSoonArt");
+    art->setAccessibleName(QStringLiteral("敬请期待字符画"));
+    art->setReadOnly(true);
+    art->setUndoRedoEnabled(false);
+    art->setLineWrapMode(QPlainTextEdit::NoWrap);
+    art->setCursorWidth(0);
+    art->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    font.setStyleHint(QFont::Monospace);
+    font.setFixedPitch(true);
+    font.setPixelSize(17);
+    art->setFont(font);
+    art->document()->setDocumentMargin(4);
+    QFile resource(QStringLiteral(":/coming_soon.txt"));
+    if (resource.open(QIODevice::ReadOnly))
+        art->setPlainText(QString::fromUtf8(resource.readAll()));
+    else
+        art->setPlainText(QStringLiteral("  /\\_/\\\n ( o.o )\n  > ^ <"));
+    terminalLayout->addWidget(art, 1);
+    layout->addWidget(terminal, 8);
+    layout->addStretch(1);
+    return page;
 }
 
 QWidget* CalculatorWindow::createExpressionPage() {
@@ -615,22 +679,12 @@ QWidget* CalculatorWindow::createPolynomialPage() {
     termsLayout->addWidget(polynomialTerms_, 1);
     results->addWidget(termsCard, 1);
 
-    QVBoxLayout* helpLayout;
-    auto* help = card(helpLayout);
-    help->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
-    helpLayout->setContentsMargins(18, 14, 18, 14);
-    helpLayout->setSpacing(8);
-    helpLayout->addWidget(label(QStringLiteral("输入小贴士"), "sectionTitle"));
-    auto* helpText = label(QStringLiteral("先输入项数，再输入每项的系数和指数。\n例如 2 2 3 5 1 表示 2x^3 + 5x。\n指数须严格降序；零多项式输入 0。"), "muted");
-    helpText->setWordWrap(true);
-    helpLayout->addWidget(helpText);
-    polynomialSample_ = new QComboBox;
+    polynomialSample_ = new QComboBox(this);
     polynomialSample_->setObjectName("polynomialSample");
     polynomialSample_->addItems({QStringLiteral("试试题目中的参考示例…"), QStringLiteral("加法 · 合并同类项"),
         QStringLiteral("加法 · 完全抵消"), QStringLiteral("减法 · 得到 −x"), QStringLiteral("乘法 · 平方差"),
         QStringLiteral("求导 · 三次多项式"), QStringLiteral("求值 · 代入 x = 2")});
-    helpLayout->addWidget(polynomialSample_);
-    results->addWidget(help);
+    polynomialSample_->hide();
     results->addStretch();
     layout->addWidget(right, 5);
 

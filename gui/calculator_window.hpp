@@ -23,6 +23,7 @@ public:
 private:
     QWidget* createExpressionPage();
     QWidget* createPolynomialPage();
+    QWidget* createComingSoonPage();
     void changePage(int index);
     void calculateExpression();
     void invalidateExpression();
@@ -37,6 +38,7 @@ private:
     QStackedWidget* pages_ = nullptr;
     QPushButton* expressionNavigation_ = nullptr;
     QPushButton* polynomialNavigation_ = nullptr;
+    QPushButton* comingSoonNavigation_ = nullptr;
     QLabel* pageTitle_ = nullptr;
     QLabel* pageSubtitle_ = nullptr;
     QLabel* pageBadge_ = nullptr;

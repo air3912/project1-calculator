@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTableWidget>
@@ -61,6 +62,35 @@ private slots:
         QVERIFY(child<QPushButton>("polynomialNavigation")->isChecked());
         child<QPushButton>("expressionNavigation")->click();
         QCOMPARE(child<QStackedWidget>("pages")->currentIndex(), 0);
+    }
+
+    void comingSoonNavigationPreservesCalculations() {
+        expression("(2+3)*4");
+        const int traceRows = child<QTableWidget>("traceTable")->rowCount();
+        child<QLineEdit>("polynomialA")->setText("1 7 0");
+        child<QComboBox>("polynomialOperation")->setCurrentIndex(3);
+        child<QPushButton>("polynomialCalculate")->click();
+        child<QPushButton>("comingSoonNavigation")->click();
+        QCOMPARE(child<QStackedWidget>("pages")->count(), 3);
+        QCOMPARE(child<QStackedWidget>("pages")->currentIndex(), 2);
+        QVERIFY(child<QPushButton>("comingSoonNavigation")->isChecked());
+        QVERIFY(!child<QPushButton>("expressionNavigation")->isChecked());
+        QVERIFY(!child<QPushButton>("polynomialNavigation")->isChecked());
+        auto* art = child<QPlainTextEdit>("comingSoonArt");
+        QVERIFY(art->isVisible());
+        QVERIFY(art->isReadOnly());
+        QCOMPARE(art->lineWrapMode(), QPlainTextEdit::NoWrap);
+        const QString original = art->toPlainText();
+        QVERIFY(original.contains("@@@@@@@@@@")); // Real bundled art, not the fallback.
+        QVERIFY(original.contains("\n"));
+        QTest::keyClicks(art, "123");
+        QCOMPARE(art->toPlainText(), original);
+        child<QPushButton>("expressionNavigation")->click();
+        QCOMPARE(child<QLabel>("expressionResult")->text(), QStringLiteral("20"));
+        QCOMPARE(child<QTableWidget>("traceTable")->rowCount(), traceRows);
+        child<QPushButton>("polynomialNavigation")->click();
+        QCOMPARE(child<QLineEdit>("polynomialA")->text(), QStringLiteral("1 7 0"));
+        QCOMPARE(child<QLabel>("polynomialResult")->text(), QStringLiteral("0"));
     }
 
     void keyboardAndUnicodeOperators() {
@@ -231,6 +261,12 @@ private slots:
         child<QComboBox>("polynomialSample")->setCurrentIndex(6);
         QApplication::processEvents();
         QVERIFY(window_->grab().save(directory + "/polynomial-evaluation.png"));
+        child<QPushButton>("comingSoonNavigation")->click();
+        QApplication::processEvents();
+        QVERIFY(window_->grab().save(directory + "/coming-soon-minimum.png"));
+        window_->resize(1280, 840);
+        QApplication::processEvents();
+        QVERIFY(window_->grab().save(directory + "/coming-soon.png"));
     }
 };
 

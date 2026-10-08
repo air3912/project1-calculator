@@ -1,6 +1,6 @@
 <RCC>
     <qresource prefix="/">
         <file>avatar.jpg</file>
+        <file>coming_soon.txt</file>
     </qresource>
 </RCC>
-
