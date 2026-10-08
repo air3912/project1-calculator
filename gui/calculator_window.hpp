@@ -8,8 +8,10 @@
 class QCheckBox;
 class QComboBox;
 class QFrame;
+class QFile;
 class QLabel;
 class QLineEdit;
+class QMediaPlayer;
 class QPushButton;
 class QStackedWidget;
 class QTableWidget;
@@ -39,9 +41,15 @@ private:
     QPushButton* expressionNavigation_ = nullptr;
     QPushButton* polynomialNavigation_ = nullptr;
     QPushButton* comingSoonNavigation_ = nullptr;
+    QMediaPlayer* comingSoonPlayer_ = nullptr;
+    QFile* comingSoonVideoSource_ = nullptr;
+    QLabel* comingSoonVideoNotice_ = nullptr;
     QLabel* pageTitle_ = nullptr;
     QLabel* pageSubtitle_ = nullptr;
     QLabel* pageBadge_ = nullptr;
+    QWidget* usageHeader_ = nullptr;
+    QLabel* usageContent_ = nullptr;
+    QLabel* usageImage_ = nullptr;
 
     QLineEdit* expressionInput_ = nullptr;
     FittedResultLabel* expressionResult_ = nullptr;

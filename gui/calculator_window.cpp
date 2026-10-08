@@ -1,5 +1,7 @@
 #include "calculator_window.hpp"
 #include "fitted_result_label.hpp"
+#include "video_canvas.hpp"
+#include "usage_notes.hpp"
 #include "calculator/error.hpp"
 #include <QApplication>
 #include <QButtonGroup>
@@ -8,14 +10,13 @@
 #include <QComboBox>
 #include <QFrame>
 #include <QFile>
-#include <QFontDatabase>
 #include <QGridLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMediaPlayer>
 #include <QPainter>
 #include <QPainterPath>
-#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSizePolicy>
 #include <QSignalBlocker>
@@ -24,7 +25,8 @@
 #include <QStatusBar>
 #include <QStyle>
 #include <QTableWidget>
-#include <QTextDocument>
+#include <QUrl>
+#include <QVideoSink>
 #include <QVBoxLayout>
 #include <cerrno>
 #include <cmath>
@@ -209,6 +211,7 @@ CalculatorWindow::CalculatorWindow(QWidget* parent) : QMainWindow(parent) {
     content->setContentsMargins(28, 28, 28, 24);
     content->setSpacing(22);
     auto* header = new QHBoxLayout;
+    header->setSpacing(20);
     auto* heading = new QVBoxLayout;
     heading->setSpacing(8);
     heading->addWidget(label(QStringLiteral("PROJECT 01 / CALCULATOR"), "eyebrow"));
@@ -216,8 +219,32 @@ CalculatorWindow::CalculatorWindow(QWidget* parent) : QMainWindow(parent) {
     pageSubtitle_ = label("", "subtitle");
     heading->addWidget(pageTitle_);
     heading->addWidget(pageSubtitle_);
-    header->addLayout(heading);
-    header->addStretch();
+    header->addLayout(heading, 1);
+    usageHeader_ = new QWidget;
+    usageHeader_->setObjectName("usageHeader");
+    usageHeader_->setFixedWidth(230);
+    auto* usageLayout = new QVBoxLayout(usageHeader_);
+    usageLayout->setContentsMargins(0, 26, 0, 0);
+    usageLayout->setSpacing(6);
+    usageLayout->addWidget(label(QStringLiteral("使用说明"), "sectionTitle", "usageTitle"));
+    usageContent_ = label("", "muted", "usageContent");
+    usageContent_->setWordWrap(true);
+    usageContent_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    usageContent_->setFixedHeight(42);
+    usageContent_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    usageLayout->addWidget(usageContent_);
+    header->addWidget(usageHeader_, 0, Qt::AlignTop);
+    usageImage_ = new QLabel;
+    usageImage_->setObjectName("usageImage");
+    usageImage_->setAccessibleName(QStringLiteral("使用说明配图"));
+    usageImage_->setFixedSize(96, 96);
+    usageImage_->setAlignment(Qt::AlignCenter);
+    const QPixmap usagePicture(QStringLiteral(":/usage_image.jpg"));
+    usageImage_->setPixmap(usagePicture.scaled(192, 192, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    QPixmap usageThumbnail = usageImage_->pixmap();
+    usageThumbnail.setDevicePixelRatio(2.0);
+    usageImage_->setPixmap(usageThumbnail);
+    header->addWidget(usageImage_, 0, Qt::AlignTop);
     pageBadge_ = label("", "badge");
     header->addWidget(pageBadge_, 0, Qt::AlignTop);
     content->addLayout(header);
@@ -245,13 +272,29 @@ void CalculatorWindow::changePage(int index) {
     expressionNavigation_->setChecked(index == 0);
     polynomialNavigation_->setChecked(index == 1);
     comingSoonNavigation_->setChecked(index == 2);
+    usageHeader_->setVisible(index != 2);
+    usageImage_->setVisible(index != 2);
+    pageBadge_->setVisible(index == 2);
+    usageContent_->setText(QString::fromUtf8(index == 0 ? usage_notes::expression : usage_notes::polynomial));
     if (index == 2) {
         pageTitle_->setText(QStringLiteral("敬请期待"));
         pageSubtitle_->setText(QStringLiteral("更多功能，敬请期待～"));
         pageBadge_->setText(QStringLiteral("COMING SOON"));
         statusBar()->showMessage(QStringLiteral("敬请期待"));
+        if (!comingSoonVideoSource_->isOpen()) {
+            if (comingSoonVideoSource_->open(QIODevice::ReadOnly)) {
+                comingSoonPlayer_->setSourceDevice(comingSoonVideoSource_, QUrl(QStringLiteral("qrc:/coming_soon.mov")));
+            } else {
+                comingSoonVideoNotice_->setText(QStringLiteral("视频资源暂时不可用"));
+                comingSoonVideoNotice_->show();
+                return;
+            }
+        }
+        comingSoonPlayer_->play();
         return;
     }
+    if (comingSoonPlayer_->playbackState() == QMediaPlayer::PlayingState)
+        comingSoonPlayer_->pause();
     statusBar()->showMessage(QStringLiteral("就绪   ·   支持键盘输入，按 Enter 计算"));
     pageTitle_->setText(index == 0 ? QStringLiteral("表达式计算") : QStringLiteral("多项式计算"));
     pageSubtitle_->setText(index == 0
@@ -263,46 +306,36 @@ void CalculatorWindow::changePage(int index) {
 QWidget* CalculatorWindow::createComingSoonPage() {
     auto* page = new QWidget;
     page->setObjectName("comingSoonPage");
-    auto* layout = new QHBoxLayout(page);
+    auto* layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    layout->setSpacing(16);
+    auto* video = new VideoCanvas;
+    video->setObjectName("comingSoonVideo");
+    video->setAccessibleName(QStringLiteral("敬请期待循环动画"));
+    layout->addWidget(video, 0, Qt::AlignLeft);
+    comingSoonVideoNotice_ = label(QStringLiteral("正在加载视频…"), "muted", "comingSoonVideoNotice");
+    comingSoonVideoNotice_->setAlignment(Qt::AlignLeft);
+    layout->addWidget(comingSoonVideoNotice_, 0, Qt::AlignLeft);
     layout->addStretch(1);
 
-    auto* terminal = new QFrame;
-    identify(terminal, "asciiCard");
-    terminal->setMinimumWidth(620);
-    terminal->setMaximumWidth(720);
-    auto* terminalLayout = new QVBoxLayout(terminal);
-    terminalLayout->setContentsMargins(24, 18, 24, 20);
-    terminalLayout->setSpacing(14);
-    auto* heading = new QHBoxLayout;
-    heading->addWidget(label(QStringLiteral(">_  text"), "asciiHeading"));
-    heading->addStretch();
-    heading->addWidget(label(QStringLiteral("ASCII"), "asciiCaption"));
-    terminalLayout->addLayout(heading);
-
-    auto* art = new QPlainTextEdit;
-    identify(art, "asciiArt", "comingSoonArt");
-    art->setAccessibleName(QStringLiteral("敬请期待字符画"));
-    art->setReadOnly(true);
-    art->setUndoRedoEnabled(false);
-    art->setLineWrapMode(QPlainTextEdit::NoWrap);
-    art->setCursorWidth(0);
-    art->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    font.setStyleHint(QFont::Monospace);
-    font.setFixedPitch(true);
-    font.setPixelSize(17);
-    art->setFont(font);
-    art->document()->setDocumentMargin(4);
-    QFile resource(QStringLiteral(":/coming_soon.txt"));
-    if (resource.open(QIODevice::ReadOnly))
-        art->setPlainText(QString::fromUtf8(resource.readAll()));
-    else
-        art->setPlainText(QStringLiteral("  /\\_/\\\n ( o.o )\n  > ^ <"));
-    terminalLayout->addWidget(art, 1);
-    layout->addWidget(terminal, 8);
-    layout->addStretch(1);
+    comingSoonPlayer_ = new QMediaPlayer(this);
+    comingSoonPlayer_->setObjectName("comingSoonPlayer");
+    comingSoonPlayer_->setLoops(QMediaPlayer::Infinite);
+    // No audio output: the decorative animation always stays silent.
+    comingSoonPlayer_->setAudioOutput(nullptr);
+    auto* sink = new QVideoSink(comingSoonPlayer_);
+    comingSoonPlayer_->setVideoSink(sink);
+    comingSoonVideoSource_ = new QFile(QStringLiteral(":/coming_soon.mov"), comingSoonPlayer_);
+    connect(sink, &QVideoSink::videoFrameChanged, video, [this, video](const QVideoFrame& frame) {
+        video->setFrame(frame);
+        if (video->hasFrame()) comingSoonVideoNotice_->hide();
+    });
+    connect(comingSoonPlayer_, &QMediaPlayer::errorOccurred, this,
+        [this](QMediaPlayer::Error, const QString& details) {
+            comingSoonVideoNotice_->setText(QStringLiteral("视频暂时无法播放"));
+            comingSoonVideoNotice_->setToolTip(details);
+            comingSoonVideoNotice_->show();
+        });
     return page;
 }
 
@@ -330,24 +363,10 @@ QWidget* CalculatorWindow::createExpressionPage() {
     editorLayout->addLayout(editorHeading);
     expressionInput_ = input("expressionInput", "expressionInput");
     expressionInput_->setAccessibleName(QStringLiteral("算术表达式输入"));
-    expressionInput_->setPlaceholderText(QStringLiteral("例如 (2 + 3) * 4"));
+    expressionInput_->setPlaceholderText(QStringLiteral("输入算术表达式"));
     expressionInput_->setText(QStringLiteral("10 - 2 * 3"));
     editorLayout->addWidget(expressionInput_);
     editorLayout->addWidget(label(QStringLiteral("支持 +  −  ×  ÷  ^  与括号"), "muted"));
-    auto* samples = new QHBoxLayout;
-    samples->setSpacing(6);
-    const char* examples[] = {"(2+3)*4", "3*(-2)", "2^3^2"};
-    for (const char* example : examples) {
-        auto* sample = button(QString::fromLatin1(example), "sample");
-        sample->setMinimumHeight(28);
-        sample->setFocusPolicy(Qt::NoFocus);
-        samples->addWidget(sample);
-        connect(sample, &QPushButton::clicked, this, [this, example] {
-            expressionInput_->setText(QString::fromLatin1(example));
-            calculateExpression();
-        });
-    }
-    editorLayout->addLayout(samples);
     expressionError_ = label("", "error", "expressionError");
     expressionError_->setWordWrap(true);
     expressionError_->setMinimumHeight(28);

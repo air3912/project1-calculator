@@ -102,10 +102,5 @@ void applyCalculatorStyle(QApplication& application) {
         QStatusBar { background: #ffffff; color: #758b7c; border-top: 1px solid #dfe8e2; font-size: 11px; }
         QStatusBar::item { border: none; }
         QSplitter::handle { background: transparent; }
-        QFrame[role="asciiCard"] { background: #242c27; border: 1px solid #344b3d; border-radius: 14px; }
-        QLabel[role="asciiHeading"] { color: #d9e9de; font-size: 15px; font-weight: 600; }
-        QLabel[role="asciiCaption"] { color: #8dab98; font-size: 11px; }
-        QPlainTextEdit[role="asciiArt"] { background: #242c27; color: #d5e8db; border: none;
-            selection-background-color: #365c45; selection-color: #ffffff; }
     )QSS"));
 }

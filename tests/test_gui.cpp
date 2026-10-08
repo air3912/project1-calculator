@@ -1,5 +1,6 @@
 #include "calculator_window.hpp"
 #include "style.hpp"
+#include "video_canvas.hpp"
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
@@ -7,10 +8,11 @@
 #include <QDir>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPlainTextEdit>
+#include <QMediaPlayer>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTableWidget>
+#include <QVideoSink>
 #include <QtTest>
 
 class GuiTests : public QObject {
@@ -76,21 +78,47 @@ private slots:
         QVERIFY(child<QPushButton>("comingSoonNavigation")->isChecked());
         QVERIFY(!child<QPushButton>("expressionNavigation")->isChecked());
         QVERIFY(!child<QPushButton>("polynomialNavigation")->isChecked());
-        auto* art = child<QPlainTextEdit>("comingSoonArt");
-        QVERIFY(art->isVisible());
-        QVERIFY(art->isReadOnly());
-        QCOMPARE(art->lineWrapMode(), QPlainTextEdit::NoWrap);
-        const QString original = art->toPlainText();
-        QVERIFY(original.contains("@@@@@@@@@@")); // Real bundled art, not the fallback.
-        QVERIFY(original.contains("\n"));
-        QTest::keyClicks(art, "123");
-        QCOMPARE(art->toPlainText(), original);
+        auto* video = dynamic_cast<VideoCanvas*>(child<QWidget>("comingSoonVideo"));
+        QVERIFY(video);
+        QVERIFY(video->isVisible());
+        auto* player = child<QMediaPlayer>("comingSoonPlayer");
+        QVERIFY(player->audioOutput() == nullptr);
+        QTRY_VERIFY_WITH_TIMEOUT(video->hasFrame(), 5000);
+        QCOMPARE(player->error(), QMediaPlayer::NoError);
+        QTRY_COMPARE_WITH_TIMEOUT(player->playbackState(), QMediaPlayer::PlayingState, 5000);
         child<QPushButton>("expressionNavigation")->click();
+        QTRY_COMPARE(player->playbackState(), QMediaPlayer::PausedState);
         QCOMPARE(child<QLabel>("expressionResult")->text(), QStringLiteral("20"));
         QCOMPARE(child<QTableWidget>("traceTable")->rowCount(), traceRows);
         child<QPushButton>("polynomialNavigation")->click();
         QCOMPARE(child<QLineEdit>("polynomialA")->text(), QStringLiteral("1 7 0"));
         QCOMPARE(child<QLabel>("polynomialResult")->text(), QStringLiteral("0"));
+    }
+
+    void comingSoonVideoAnimatesLoopsAndResumes() {
+        auto* player = child<QMediaPlayer>("comingSoonPlayer");
+        QCOMPARE(player->playbackState(), QMediaPlayer::StoppedState);
+        child<QPushButton>("comingSoonNavigation")->click();
+        auto* video = dynamic_cast<VideoCanvas*>(child<QWidget>("comingSoonVideo"));
+        QVERIFY(video);
+        QTRY_VERIFY_WITH_TIMEOUT(video->hasFrame() && player->duration() > 0, 5000);
+        const QImage first = player->videoSink()->videoFrame().toImage();
+        QVERIFY(!first.isNull());
+        QTest::qWait(150);
+        const QImage next = player->videoSink()->videoFrame().toImage();
+        QVERIFY(!next.isNull());
+        QVERIFY(first != next); // Actual changing decoded frames, not a poster.
+        player->setPosition(player->duration() - 80);
+        QTRY_VERIFY_WITH_TIMEOUT(player->position() < player->duration() / 2, 2000);
+        QCOMPARE(player->playbackState(), QMediaPlayer::PlayingState);
+        child<QPushButton>("expressionNavigation")->click();
+        QTRY_COMPARE(player->playbackState(), QMediaPlayer::PausedState);
+        const qint64 pausedAt = player->position();
+        QTest::qWait(80);
+        QVERIFY(qAbs(player->position() - pausedAt) < 50);
+        child<QPushButton>("comingSoonNavigation")->click();
+        QTRY_COMPARE(player->playbackState(), QMediaPlayer::PlayingState);
+        QVERIFY(child<QLabel>("comingSoonVideoNotice")->isHidden());
     }
 
     void keyboardAndUnicodeOperators() {
@@ -262,6 +290,10 @@ private slots:
         QApplication::processEvents();
         QVERIFY(window_->grab().save(directory + "/polynomial-evaluation.png"));
         child<QPushButton>("comingSoonNavigation")->click();
+        auto* video = dynamic_cast<VideoCanvas*>(child<QWidget>("comingSoonVideo"));
+        QVERIFY(video);
+        QTRY_VERIFY_WITH_TIMEOUT(video->hasFrame(), 5000);
+        child<QMediaPlayer>("comingSoonPlayer")->pause();
         QApplication::processEvents();
         QVERIFY(window_->grab().save(directory + "/coming-soon-minimum.png"));
         window_->resize(1280, 840);
