@@ -1,0 +1,48 @@
+# Build output and packaged applications
+/build*/
+/cmake-build-*/
+/dist/
+/calculator
+/Project1
+/calculator_tests
+/calculator_gui_tests
+*.app/
+*.dSYM/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# CMake-generated files (keep the project's hand-written Makefile)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+install_manifest.txt
+
+# Qt and local IDE settings
+.qt/
+*.user
+*.user.*
+.qmake.stash
+.qmake.cache
+.vscode/
+.idea/
+
+# Local environment settings
+.env
+.env.*
+!.env.example
+
+# Operating system metadata
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
