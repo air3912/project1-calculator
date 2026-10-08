@@ -11,6 +11,8 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPushButton>
 #include <QSizePolicy>
 #include <QSignalBlocker>
@@ -152,8 +154,24 @@ CalculatorWindow::CalculatorWindow(QWidget* parent) : QMainWindow(parent) {
     auto* navigation = new QVBoxLayout(sidebar);
     navigation->setContentsMargins(18, 30, 18, 24);
     navigation->setSpacing(9);
-    auto* mark = label(QStringLiteral("ƒ"), "brandMark");
+    auto* mark = new QLabel;
     mark->setFixedSize(46, 46);
+    QPixmap src(QStringLiteral(":/avatar.jpg"));
+    if (!src.isNull()) {
+        const int s = 92;
+        QPixmap rounded(s, s);
+        rounded.fill(Qt::transparent);
+        QPainter painter(&rounded);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        QPainterPath clip;
+        clip.addRoundedRect(0, 0, s, s, 28, 28);
+        painter.setClipPath(clip);
+        painter.drawPixmap(0, 0, s, s, src.scaled(s, s, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+        painter.end();
+        rounded.setDevicePixelRatio(2.0);
+        mark->setPixmap(rounded);
+    }
     mark->setAlignment(Qt::AlignCenter);
     navigation->addWidget(mark);
     navigation->addSpacing(7);
